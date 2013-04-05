@@ -1,85 +1,143 @@
-﻿module OrderBook
+﻿namespace BitPrice
 
-type OrderSide =
-    | Buy
-    | Sell
-    member s.Opposite =
-        match s with
-        | Buy -> Sell
-        | Sell -> Buy
+module OrderBook =
+
+    type OrderSide =
+        | Buy
+        | Sell
+        member s.Opposite =
+            match s with
+            | Buy -> Sell
+            | Sell -> Buy
     
-type OrderSize = decimal
+    type OrderSize = decimal
 
-type OrderPrice = decimal
+    type OrderPrice = decimal
 
-type OrderId = OID of uint32 with
-    static member Increment (OID o) = OID(o + 1u)
-    static member Zero = OID(0u)
+    type OrderId = OID of uint32 with
+        static member Increment (OID o) = OID(o + 1u)
+        static member Zero = OID(0u)
 
-type TraderId = uint32
+    type TraderId = uint32
 
-type ProductId = uint16
+    type ProductId = uint16
 
-type Order = 
-    {Product : ProductId;
-     Trader  : TraderId;
-     Side    : OrderSide;
-     Price   : OrderPrice;
-     Size    : OrderSize}
+    type Order = 
+        {Product : ProductId;
+         Trader  : TraderId;
+         Side    : OrderSide;
+         Price   : OrderPrice;
+         Size    : OrderSize}
 
-type OrderExecution =
-    {Product : ProductId;
-     Buyer   : TraderId;
-     Seller  : TraderId;
-     Price   : OrderPrice;
-     Size    : OrderSize}
+    type OrderExecution =
+        {Product : ProductId;
+         Buyer   : TraderId;
+         Seller  : TraderId;
+         Price   : OrderPrice;
+         Size    : OrderSize}
 
-type OrderBookEntry =
-    {Size    : OrderSize;
-     Trader  : TraderId}
+    type OrderBookEntry =
+        {OrderId : OrderId;
+         Size    : OrderSize;
+         Trader  : TraderId}
 
-type OrderBookPricePoint =
-    {Price   : OrderPrice;
-     Entries : seq<OrderBookEntry>}
+    type OrderBookPricePoint =
+        {Price   : OrderPrice;
+         Entries : List<OrderBookEntry>}
 
-type IOrderBook =
-    abstract Limit : Order -> OrderId * IOrderBook
-    abstract Cancel : OrderId -> IOrderBook
-    abstract Execution : IEvent<OrderExecution * IOrderBook>
-    abstract BestBid : unit -> OrderPrice
-    abstract BestAsk : unit -> OrderPrice
+    type IOrderBook =
+        abstract Limit : Order -> OrderId * IOrderBook
+        abstract Cancel : OrderId -> IOrderBook
+        abstract Execution : IEvent<OrderExecution * IOrderBook>
+        abstract BestBid : unit -> OrderPrice option
+        abstract BestAsk : unit -> OrderPrice option
 
-type BasicOrderBook(?lastOrderId : OrderId, ?bids : List<OrderBookPricePoint>, ?asks : List<OrderBookPricePoint>) =
-    let lastOrderId = defaultArg lastOrderId OrderId.Zero
-    let nextOrderId () = OrderId.Increment lastOrderId
+    type BasicOrderBook private (lastOrderId : OrderId, bids : List<OrderBookPricePoint>, asks : List<OrderBookPricePoint>, executionEvent : Event<OrderExecution * IOrderBook>) =
+        let executeTrade (order : Order, entry : OrderBookEntry, price : OrderPrice) =
+            let executedSize = min order.Size entry.Size
+            let orderRemainder = {order with Size = order.Size - executedSize}
+            let entryRemainder = {entry with Size = entry.Size - executedSize}
+            let buyer, seller  = if order.Side = Buy then order.Trader, entry.Trader else entry.Trader, order.Trader
+            let execution = {Product = order.Product; Buyer = buyer; Seller = seller; Price = price; Size = executedSize}
+            (orderRemainder, entryRemainder, execution)
 
-    let bids = defaultArg bids []
-    let asks = defaultArg asks []
+        new () = BasicOrderBook(OrderId.Zero, [], [], new Event<OrderExecution * IOrderBook>())
+        
+        member private b.Bids = bids
+        member private b.Asks = asks
 
-    let executionEvent = new Event<OrderExecution * IOrderBook>()
+        member private b.IncrementLastOrderId () = let nextOrderId = OrderId.Increment lastOrderId in (nextOrderId, new BasicOrderBook(nextOrderId, b.Bids, b.Asks, executionEvent))
 
-    let executeTrade (order : Order, entry : OrderBookEntry, price : OrderPrice) =
-        let executedSize = min order.Size entry.Size
-        let orderRemainder = {order with Size = order.Size - executedSize}
-        let entryRemainder = {entry with Size = entry.Size - executedSize}
-        let buyer, seller  = if order.Side = Buy then order.Trader, entry.Trader else entry.Trader, order.Trader
-        let execution = {Product = order.Product; Buyer = buyer; Seller = seller; Price = price; Size = executedSize}
-        (orderRemainder, entryRemainder, execution)
+        member private b.AddOrder order =
+            let (newOrderId, _) = b.IncrementLastOrderId()
+            let (pricePoints, operator) = match order.Side with
+                                          | Buy -> (b.Bids, (>))
+                                          | Sell -> (b.Asks, (<))
+            let obe = {OrderId = newOrderId; Size = order.Size; Trader = order.Trader}
 
-    let rec crossOrder (order : Order, entries : List<OrderBookEntry>, price : OrderPrice) =
-        match entries with
-        | h::t when order.Size >= h.Size -> executeTrade(order, h, price) |> (fun (x, _, z) -> let nob = new BasicOrderBook(lastOrderId,  crossOrder(x, t, price))
-        | h::t -> executeTrade(order, h, price) |> (fun (x, y) -> (x, y::t))
-        | [] -> (order, [])
+            let rec insertInto pps = match pps with
+                                     | [] -> {Price = order.Price; Entries = obe::[]}::[]
+                                     | h::t when operator order.Price h.Price -> {Price = order.Price; Entries = obe::[]}::h::t
+                                     | h::t when order.Price = h.Price -> {h with Entries = h.Entries @ [obe]}::t
+                                     | h::t -> h::(insertInto t)
+        
+            let newPps = insertInto pricePoints
+            let nob = match order.Side with
+                      | Buy -> new BasicOrderBook(newOrderId, newPps, b.Asks, executionEvent)
+                      | Sell -> new BasicOrderBook(newOrderId, b.Bids, newPps, executionEvent)
 
-    let insertOrder operator order (pp::pricePoints) =
-        | operator order.Price pp.Price ->
+            (newOrderId, nob)
+
+        member private b.CrossOrder order =
+            let pricePoints = match order.Side with
+                              | Buy -> b.Asks
+                              | Sell -> b.Bids
+            let (oRem, pps, x) = match pricePoints with
+                                 | [] -> failwith "Cannot cross order with empty book!"
+                                 | pp::pps -> match pp.Entries with
+                                              | [] -> failwith "Empty price point!"
+                                              | e::es -> executeTrade(order, e, pp.Price)
+                                                      |> (fun (oRem, eRem, x) -> match eRem.Size > OrderSize.Zero with
+                                                                                 | true -> (oRem, {pp with Entries = eRem::es}::pps, x)
+                                                                                 | false -> match es with
+                                                                                             | h::t -> (oRem, {pp with Entries = es}::pps, x)
+                                                                                             | [] -> (oRem, pps, x))
+            let nob = match order.Side with
+                      | Buy -> new BasicOrderBook(lastOrderId, b.Bids, pps, executionEvent)
+                      | Sell -> new BasicOrderBook(lastOrderId, pps, b.Asks, executionEvent)
+            executionEvent.Trigger (x, nob :> IOrderBook)
+            (oRem, nob)
+
+                
+        member private b.ProcessOrder (order : Order) =
+            match order with
+            | _ when order.Size = OrderSize.Zero -> b.IncrementLastOrderId()
+            | _ when order.Side = Buy ->
+                    match b.Asks with
+                    | h::t when order.Price >= h.Price -> b.CrossOrder order |> (fun (x, y) -> y.ProcessOrder x)
+                    | _ -> b.AddOrder order
+            | _ -> //when order.Side = Sell
+                    match b.Bids with
+                    | h::t when order.Price <= h.Price -> b.CrossOrder order |> (fun (x, y) -> y.ProcessOrder x)
+                    | _ -> b.AddOrder order
+        
+        interface IOrderBook with
+            member b.Limit order =
+                b.ProcessOrder order |> (fun (a, b) -> (a, b :> IOrderBook))
+
+            member b.Execution = executionEvent.Publish
+
+            member b.BestBid () =
+                match b.Bids with
+                | h::_ -> Some h.Price
+                | [] -> None
+
+            member b.BestAsk () =
+                match b.Asks with
+                | h::_ -> Some(h.Price)
+                | [] -> None
+
+            member b.Cancel orderId =
+                b :> IOrderBook
+
     
-    interface IOrderBook with
-        member b.Limit order =
-            let orderId = nextOrderId()
-            match order.Side with
-                | OrderSide.Buy  -> orderId
-                | OrderSide.Sell -> orderId
-
-        member b.Execution = executionEvent.Publish

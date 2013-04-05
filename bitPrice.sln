@@ -39,12 +39,10 @@ Global
 		{5EB6E664-3399-4B13-B0D0-5E3EE0712F22}.Release|Win32.ActiveCfg = Release|Any CPU
 		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Debug|Any CPU.ActiveCfg = Debug|Win32
 		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
-		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Debug|Mixed Platforms.Build.0 = Debug|Win32
 		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Debug|Win32.ActiveCfg = Debug|Win32
 		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Debug|Win32.Build.0 = Debug|Win32
 		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Release|Any CPU.ActiveCfg = Release|Win32
 		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Release|Mixed Platforms.ActiveCfg = Release|Win32
-		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Release|Mixed Platforms.Build.0 = Release|Win32
 		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Release|Win32.ActiveCfg = Release|Win32
 		{6AAE4151-43EC-4F7B-A76C-0E5E2EE3AD96}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection

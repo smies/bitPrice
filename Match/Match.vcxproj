@@ -81,6 +81,7 @@
     <ClCompile Include="..\..\..\C\quantcup\engine.c" />
     <ClCompile Include="..\..\..\C\quantcup\score.c" />
     <ClCompile Include="..\..\..\C\quantcup\test.c" />
+    <ClCompile Include="engine_voyager.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\C\quantcup\derived.h" />
