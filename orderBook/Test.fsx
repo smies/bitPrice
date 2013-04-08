@@ -1,4 +1,6 @@
-﻿#load "OrderBook.fs"
+﻿(*
+
+#load "OrderBook.fs"
 open BitPrice.OrderBook
 
 let ob = new BasicOrderBook() :> IOrderBook
@@ -13,3 +15,5 @@ let (oid, ob) = ob.Limit {Product=1us;Trader=1u;Side=OrderSide.Sell;Price=9.0m;S
 ob.BestBid()
 ob.BestAsk()
 let (oid, ob) = ob.Limit {Product=1us;Trader=3u;Side=OrderSide.Buy;Price=100.5m;Size=1000.0m}
+
+*)

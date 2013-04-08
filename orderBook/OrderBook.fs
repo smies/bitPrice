@@ -1,5 +1,7 @@
 ﻿namespace BitPrice
 
+//open System.Collections.Generic
+
 module OrderBook =
 
     type OrderSide =
@@ -47,7 +49,8 @@ module OrderBook =
 
     type IOrderBook =
         abstract Limit : Order -> OrderId * IOrderBook
-        abstract Cancel : OrderId -> IOrderBook
+        abstract Cancel : OrderId -> bool * IOrderBook
+        [<CLIEvent>]
         abstract Execution : IEvent<OrderExecution * IOrderBook>
         abstract BestBid : unit -> OrderPrice option
         abstract BestAsk : unit -> OrderPrice option
@@ -108,6 +111,24 @@ module OrderBook =
             executionEvent.Trigger (x, nob :> IOrderBook)
             (oRem, nob)
 
+        member private b.CancelOrder orderId =
+            let rec removeFromEs entries =
+                match entries with
+                | [] -> ([], false)
+                | e::es when e.OrderId = orderId -> (es, true)
+                | e::es -> removeFromEs es |> (fun (l, r) -> (e::l, r))
+        
+            let rec removeFromPs pps = match pps with
+                                       | [] -> ([], false)
+                                       | h::t -> match removeFromEs h.Entries with
+                                                 | (l, true) -> ({h with Entries = l}::t, true)
+                                                 | (l, false) -> removeFromPs t |> (fun (m, r) -> (h::m, r))
+
+            match removeFromPs bids with
+            | (pps, true) -> (true, new BasicOrderBook(lastOrderId, pps, b.Asks, executionEvent))
+            | (_, false) -> match removeFromPs asks with
+                            | (pps, true) -> (true, new BasicOrderBook(lastOrderId, b.Bids, pps, executionEvent))
+                            | (_, false) -> (false, b)
                 
         member private b.ProcessOrder (order : Order) =
             match order with
@@ -125,6 +146,7 @@ module OrderBook =
             member b.Limit order =
                 b.ProcessOrder order |> (fun (a, b) -> (a, b :> IOrderBook))
 
+            [<CLIEvent>]
             member b.Execution = executionEvent.Publish
 
             member b.BestBid () =
@@ -138,6 +160,6 @@ module OrderBook =
                 | [] -> None
 
             member b.Cancel orderId =
-                b :> IOrderBook
+                b.CancelOrder orderId |> (fun (a,b) -> (a, b :> IOrderBook))
 
     
