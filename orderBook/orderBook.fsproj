@@ -41,6 +41,8 @@
     <Compile Include="Internal.fs" />
     <Compile Include="OrderBook.fs" />
     <None Include="Test.fsx" />
+    <Compile Include="NaiveOrderBook.fs" />
+    <Compile Include="QueueOrderBook.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />

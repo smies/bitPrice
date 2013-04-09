@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using BitPrice;
+using BitPrice.OrderBook;
 using Microsoft.VisualBasic.FileIO;
 
 namespace obTestCS
@@ -27,7 +27,7 @@ namespace obTestCS
 			{"ID9", 9},
 		};
 
-        public static IEnumerable<OrderBook.Order> Orders()
+        public static IEnumerable<Order> Orders()
         {
             TextFieldParser parser = new TextFieldParser(@"order_data.csv");
             parser.TextFieldType = FieldType.Delimited;
@@ -37,11 +37,11 @@ namespace obTestCS
             {
                 //Processing row
                 string[] fields = parser.ReadFields();
-                yield return new OrderBook.Order(productMap[fields[0]],
-                                                 traderMap[fields[1]],
-                                                 fields[2] == "0" ? OrderBook.OrderSide.Buy : OrderBook.OrderSide.Sell,
-                                                 decimal.Parse(fields[3]),
-                                                 decimal.Parse(fields[4]));
+                yield return new Order(productMap[fields[0]],
+                                       traderMap[fields[1]],
+                                       fields[2] == "0" ? OrderSide.Buy : OrderSide.Sell,
+                                       decimal.Parse(fields[3]),
+                                       decimal.Parse(fields[4]));
             }
             parser.Close();
         }
